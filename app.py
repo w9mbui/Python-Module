@@ -11,10 +11,9 @@ from googleapiclient.errors import HttpError
 
 app = Flask(__name__)
 
-# API Keys (replace with your own or use env vars)
-OPENWEATHER_API_KEY = 'your_openweather_api_key'
-AMBEE_API_KEY = 'your_ambee_api_key'
-SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
+# OPENWEATHER_API_KEY = 'your_openweather_api_key'
+# AMBEE_API_KEY = 'your_ambee_api_key'
+# SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
 
 class WeatherFetcher:
     def __init__(self):
