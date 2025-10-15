@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Smart Weather & Lifestyle Assistant</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        section { margin-bottom: 20px; }
+        h1, h2 { color: #333; }
+        input, select, button { margin: 5px; padding: 5px; }
+        #weather-result, #calendar-alerts, #commute-result, #best-times, #favorites-list { margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Smart Weather & Lifestyle Assistant</h1>
+    
+    <section>
+        <h2>Get Weather</h2>
+        <input id="location" placeholder="Enter location">
+        <input id="date" type="date" placeholder="Optional date">
+        <button onclick="fetchWeather()">Get Weather</button>
+        <div id="weather-result"></div>
+        <label><input type="checkbox" id="temp-unit" checked> Celsius (uncheck for Fahrenheit)</label>
+    </section>
+    
+    <section>
+        <h2>Calendar Rain Alerts</h2>
+        <button onclick="checkCalendar()">Check Alerts</button>
+        <div id="calendar-alerts"></div>
+    </section>
+    
+    <section>
+        <h2>Commute Alert</h2>
+        <input id="commute-time" type="time">
+        <button onclick="getCommuteAlert()">Get Alert</button>
+        <div id="commute-result"></div>
+    </section>
+    
+    <section>
+        <h2>Best Time for Activity</h2>
+        <select id="activity">
+            <option value="picnic">Picnic</option>
+            <option value="hike">Hike</option>
+            <option value="wedding">Wedding</option>
+        </select>
+        <input id="activity-date" type="date">
+        <button onclick="getBestTimes()">Suggest Times</button>
+        <div id="best-times"></div>
+    </section>
+    
+    <section>
+        <h2>Log Mood</h2>
+        <input id="mood" type="number" min="1" max="10" placeholder="Mood (1-10)">
+        <button onclick="saveMood()">Save Mood</button>
+    </section>
+    
+    <section>
+        <h2>Mood over Weather Chart</h2>
+        <canvas id="mood-chart" width="400" height="200"></canvas>
+        <button onclick="loadChart()">Load Chart</button>
+    </section>
+    
+    <section>
+        <h2>Favorite Cities</h2>
+        <input id="favorite-city" placeholder="Add city">
+        <button onclick="addFavorite()">Add</button>
+        <div id="favorites-list"></div>
+        <button onclick="loadFavorites()">Load Favorites</button>
+    </section>
+</body>
+</html>
