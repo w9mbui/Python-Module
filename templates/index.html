@@ -10,7 +10,70 @@
         section { margin-bottom: 20px; }
         h1, h2 { color: #333; }
         input, select, button { margin: 5px; padding: 5px; }
-        #weather-result, #calendar-alerts, #commute-result, #best-times, #favorites-list { margin-top: 10px; }
+        #weather-result, #commute-result, #best-times, #favorites-list { margin-top: 10px; }
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            margin: 10px 5px;
+        }
+        .toggle-label {
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: black;
+            transition: 0.4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: 0.4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #adcbe3;
+        }
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        .slider:after {
+            content: '°F';
+            color: white;
+            display: block;
+            position: absolute;
+            top: 50%;
+            left: 10px;
+            transform: translateY(-50%);
+            font-size: 12px;
+        }
+        input:checked + .slider:after {
+            content: '°C';
+            left: auto;
+            right: 10px;
+        }
     </style>
 </head>
 <body>
@@ -18,17 +81,20 @@
     
     <section>
         <h2>Get Weather</h2>
-        <input id="location" placeholder="Enter location">
+        <input id="location" placeholder="Enter location" value="{{ city }}">
         <input id="date" type="date" placeholder="Optional date">
+        <input type="hidden" id="lat" value="{{ lat }}">
+        <input type="hidden" id="lon" value="{{ lon }}">
+        <input type="hidden" id="timezone" value="{{ timezone }}">
         <button onclick="fetchWeather()">Get Weather</button>
         <div id="weather-result"></div>
-        <label><input type="checkbox" id="temp-unit" checked> Celsius (uncheck for Fahrenheit)</label>
-    </section>
-    
-    <section>
-        <h2>Calendar Rain Alerts</h2>
-        <button onclick="checkCalendar()">Check Alerts</button>
-        <div id="calendar-alerts"></div>
+        <div class="toggle-container">
+            <span class="toggle-label">Temperature Unit:</span>
+            <label class="toggle-switch">
+                <input type="checkbox" id="temp-unit" checked>
+                <span class="slider"></span>
+            </label>
+        </div>
     </section>
     
     <section>

@@ -2,218 +2,148 @@ from flask import Flask, render_template, request, jsonify
 import requests
 import os
 import datetime
-import json
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 
 app = Flask(__name__)
 
-# OPENWEATHER_API_KEY = 'your_openweather_api_key'
-# AMBEE_API_KEY = 'your_ambee_api_key'
-# SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
-
-class WeatherFetcher:
+class WeatherCompanion:
     def __init__(self):
-        self.base_url = 'https://api.openweathermap.org/data/3.0/onecall'
-        self.geo_url = 'https://api.openweathermap.org/geo/1.0/direct'
+        self.forecast_api = "https://api.open-meteo.com/v1/forecast"
+        self.geocode_api = "https://geocoding-api.open-meteo.com/v1/search"
+        self.ip_api = "http://ip-api.com/json/"
 
     def get_lat_lon(self, location):
-        params = {'q': location, 'limit': 1, 'appid': OPENWEATHER_API_KEY}
-        response = requests.get(self.geo_url, params=params)
-        data = response.json()
-        if data:
-            return data[0]['lat'], data[0]['lon']
-        return None, None
+        params = {'name': location, 'count': 1}
+        try:
+            response = requests.get(self.geocode_api, params=params)
+            response.raise_for_status()
+            data = response.json()
+            if data.get('results'):
+                return data['results'][0]['latitude'], data['results'][0]['longitude']
+            return None, None
+        except requests.RequestException as e:
+            print(f"Error fetching lat/lon: {e}")
+            return None, None
 
     def get_weather(self, location, date=None):
         lat, lon = self.get_lat_lon(location)
         if not lat:
             return None
-        params = {'lat': lat, 'lon': lon, 'exclude': 'minutely', 'units': 'metric', 'appid': OPENWEATHER_API_KEY}
-        response = requests.get(self.base_url, params=params)
-        data = response.json()
-        if date:
-            try:
-                target_date = datetime.datetime.strptime(date, '%Y-%m-%d')
-                for daily in data.get('daily', []):
-                    dt = datetime.datetime.fromtimestamp(daily['dt'])
-                    if dt.date() == target_date.date():
-                        return daily
-                return None
-            except ValueError:
-                return None
-        return data
+        params = {
+            'latitude': lat,
+            'longitude': lon,
+            'current': 'temperature_2m,relative_humidity_2m,weather_code',
+            'hourly': 'temperature_2m,precipitation',
+            'daily': 'temperature_2m_max,temperature_2m_min,precipitation_sum',
+            'timezone': 'auto'
+        }
+        try:
+            response = requests.get(self.forecast_api, params=params)
+            response.raise_for_status()
+            data = response.json()
+            if date:
+                try:
+                    target_date = datetime.datetime.strptime(date, '%Y-%m-%d')
+                    for i, daily_date in enumerate(data.get('daily', {}).get('time', [])):
+                        dt = datetime.datetime.strptime(daily_date, '%Y-%m-%d')
+                        if dt.date() == target_date.date():
+                            return {
+                                'temp': data['daily']['temperature_2m_max'][i],
+                                'humidity': data['current']['relative_humidity_2m'],
+                                'precipitation': data['daily']['precipitation_sum'][i],
+                                'weather_code': data['current']['weather_code']
+                            }
+                    return None
+                except ValueError:
+                    return None
+            return {
+                'current': {
+                    'temp': data['current']['temperature_2m'],
+                    'humidity': data['current']['relative_humidity_2m'],
+                    'precipitation': data['hourly']['precipitation'][0],
+                    'weather_code': data['current']['weather_code']
+                },
+                'hourly': [
+                    {'time': h, 'temp': t, 'precipitation': p}
+                    for h, t, p in zip(data['hourly']['time'], data['hourly']['temperature_2m'], data['hourly']['precipitation'])
+                ]
+            }
+        except requests.RequestException as e:
+            print(f"Error fetching weather: {e}")
+            return None
 
     def get_forecast_hourly(self, location):
         data = self.get_weather(location)
         return data.get('hourly', []) if data else []
 
-class PollenFetcher:
-    def __init__(self):
-        self.base_url = 'https://api.ambeedata.com/latest/pollen/by-place'
-
-    def get_pollen(self, location):
-        headers = {'x-api-key': AMBEE_API_KEY, 'Content-type': 'application/json'}
-        params = {'place': location}
-        response = requests.get(self.base_url, params=params, headers=headers)
-        data = response.json()
-        if data.get('message') == 'success' and data.get('data'):
-            return data['data'][0]
-        return None
-
-class CalendarIntegrator:
-    def get_credentials(self):
-        creds = None
-        if os.path.exists('token.json'):
-            creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
-                flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-                creds = flow.run_local_server(port=0)
-            with open('token.json', 'w') as token:
-                token.write(creds.to_json())
-        return creds
-
-    def get_events(self):
+    def get_location_by_ip(self):
         try:
-            service = build('calendar', 'v3', credentials=self.get_credentials())
-            now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-            events_result = service.events().list(calendarId='primary', timeMin=now, maxResults=10, singleEvents=True, orderBy='startTime').execute()
-            return events_result.get('items', [])
-        except HttpError as error:
-            print(f'An error occurred: {error}')
-            return []
-
-    def check_rain_for_events(self, location):
-        events = self.get_events()
-        weather_fetcher = WeatherFetcher()
-        alerts = []
-        for event in events:
-            start = event['start'].get('dateTime', event['start'].get('date'))
-            dt = datetime.datetime.fromisoformat(start.replace('Z', '+00:00'))
-            hourly = weather_fetcher.get_forecast_hourly(location)
-            for hour in hourly:
-                hour_dt = datetime.datetime.fromtimestamp(hour['dt'])
-                if abs((hour_dt - dt).total_seconds()) < 3600:
-                    if hour.get('rain', 0) > 0:
-                        alerts.append(f"Rain expected during '{event['summary']}' at {dt}")
-                    break
-        return alerts
+            response = requests.get(self.ip_api)
+            response.raise_for_status()
+            data = response.json()
+            if data.get('status') == 'success':
+                return data.get('city')
+            return None
+        except requests.RequestException as e:
+            print(f"Error fetching IP location: {e}")
+            return None
 
 class MoodTracker:
     def save_mood(self, mood, temp, condition):
-        with open('moods.txt', 'a') as f:
-            f.write(f"{datetime.date.today()},{mood},{temp},{condition}\n")
+        try:
+            with open('moods.txt', 'a') as f:
+                f.write(f"{datetime.date.today()},{mood},{temp},{condition}\n")
+        except IOError as e:
+            print(f"Error saving mood: {e}")
 
     def get_moods(self):
         if not os.path.exists('moods.txt'):
             return []
-        with open('moods.txt', 'r') as f:
-            return [line.strip().split(',') for line in f]
+        try:
+            with open('moods.txt', 'r') as f:
+                return [line.strip().split(',') for line in f]
+        except IOError as e:
+            print(f"Error reading moods: {e}")
+            return []
 
 class FavoriteManager:
     def add_favorite(self, city):
-        with open('favorites.txt', 'a') as f:
-            f.write(f"{city}\n")
+        try:
+            with open('favorites.txt', 'a') as f:
+                f.write(f"{city}\n")
+        except IOError as e:
+            print(f"Error saving favorite: {e}")
 
     def get_favorites(self):
         if not os.path.exists('favorites.txt'):
             return []
-        with open('favorites.txt', 'r') as f:
-            return [line.strip() for line in f]
+        try:
+            with open('favorites.txt', 'r') as f:
+                return [line.strip() for line in f]
+        except IOError as e:
+            print(f"Error reading favorites: {e}")
+            return []
 
 class Advisor:
     @staticmethod
-    def suggest_outfit(temp, wind, rain):
-        if rain > 0:
+    def suggest_outfit(temp, wind, precipitation):
+        if precipitation > 0:
             return "Bring an umbrella or raincoat!"
         if temp < 10:
             return "It's chilly, grab a jacket!"
         if temp > 25:
             return "Light clothing, it's warm!"
-        if wind > 20:
+        if wind > 20:  
             return "Windy, wear a windbreaker."
         return "Comfortable weather, casual outfit."
 
     @staticmethod
     def suggest_activity(condition, temp):
-        if 'clear' in condition.lower():
+        if condition in [0, 1, 2]:  
             return "Perfect day for a walk!"
-        if 'rain' in condition.lower():
+        if condition in [51, 53, 55, 61, 63, 65, 80, 81, 82]:  # Rain
             return "Stay indoors, maybe read a book."
         if temp > 20:
             return "Great for outdoor activities like hiking."
         return "Moderate weather, plan accordingly."
 
-    @staticmethod
-    def suggest_best_times(activity, date, location, hourly):
-        good_hours = []
-        try:
-            target_date = datetime.datetime.strptime(date, '%Y-%m-%d')
-        except ValueError:
-            return []
-        for hour in hourly:
-            dt = datetime.datetime.fromtimestamp(hour['dt'])
-            if dt.date() != target_date.date():
-                continue
-            temp = hour['temp']
-            rain = hour.get('rain', {}).get('1h', 0)
-            if activity == 'picnic' and temp > 15 and rain == 0:
-                good_hours.append(dt.strftime('%H:%M'))
-            elif activity == 'hike' and temp > 10 and rain == 0:
-                good_hours.append(dt.strftime('%H:%M'))
-            elif activity == 'wedding' and rain == 0:
-                good_hours.append(dt.strftime('%H:%M'))
-        return good_hours
-
-    @staticmethod
-    def commute_alert(commute_time, location):
-        weather_fetcher = WeatherFetcher()
-        hourly = weather_fetcher.get_forecast_hourly(location)
-        try:
-            target_dt = datetime.datetime.strptime(commute_time, '%H:%M')
-        except ValueError:
-            return "Invalid time format"
-        today = datetime.date.today()
-        target = datetime.datetime.combine(today, target_dt.time())
-        for hour in hourly:
-            hour_dt = datetime.datetime.fromtimestamp(hour['dt'])
-            if abs((hour_dt - target).total_seconds()) < 3600:
-                if hour.get('rain', {}).get('1h', 0) > 0:
-                    return f"Rain expected on your route at {commute_time}"
-                return "Clear commute!"
-        return "No data for that time."
-
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-@app.route('/get_weather', methods=['POST'])
-def get_weather():
-    location = request.json.get('location')
-    date = request.json.get('date')
-    if not location:
-        return jsonify({'error': 'Location is required'})
-    weather_fetcher = WeatherFetcher()
-    data = weather_fetcher.get_weather(location, date)
-    if not data:
-        return jsonify({'error': 'Location not found or invalid date'})
     
-    if date:
-        current = data
-    else:
-        current = data['current']
-    
-    pollen_fetcher = PollenFetcher()
-    pollen = pollen_fetcher.get_pollen(location)
-    
-    advisor = Advisor()
-    outfit = advisor.suggest_outfit(current['temp'], current.get('wind_speed', 0), current.get('rain', {}).get('1h', 0))
-    activity = advisor.suggest_activity(current['weather'][0]['main'], current['temp'])
-    
-    response

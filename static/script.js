@@ -11,9 +11,6 @@ function updateTempDisplay() {
         document.getElementById('weather-result').innerHTML = `
             <p>Temperature: ${convertTemp(currentData.temp).toFixed(1)} ${tempUnit}</p>
             <p>Humidity: ${currentData.humidity}%</p>
-            <p>AQI: ${currentData.aqi}</p>
-            <p>UV Index: ${currentData.uv}</p>
-            <p>Pollen: ${JSON.stringify(currentData.pollen)}</p>
             <p>Condition: ${currentData.condition}</p>
             <p>Outfit Suggestion: ${currentData.outfit}</p>
             <p>Activity Suggestion: ${currentData.activity}</p>
@@ -43,39 +40,25 @@ async function fetchWeather() {
         alert(currentData.error);
         return;
     }
+    document.getElementById('lat').value = currentData.lat;
+    document.getElementById('lon').value = currentData.lon;
+    document.getElementById('timezone').value = currentData.timezone;
     updateTempDisplay();
-}
-
-async function checkCalendar() {
-    const location = document.getElementById('location').value;
-    if (!location) {
-        alert('Please enter a location');
-        return;
-    }
-    const response = await fetch('/check_calendar', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({location})
-    });
-    const data = await response.json();
-    if (data.error) {
-        alert(data.error);
-        return;
-    }
-    document.getElementById('calendar-alerts').innerHTML = data.alerts.join('<br>') || 'No rain alerts';
 }
 
 async function getCommuteAlert() {
     const time = document.getElementById('commute-time').value;
-    const location = document.getElementById('location').value;
-    if (!location || !time) {
-        alert('Please enter location and time');
+    const lat = document.getElementById('lat').value;
+    const lon = document.getElementById('lon').value;
+    const timezone = document.getElementById('timezone').value;
+    if (!time || !lat || !lon) {
+        alert('Please get weather first and enter a time');
         return;
     }
     const response = await fetch('/commute_alert', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({time, location})
+        body: JSON.stringify({time, lat, lon, timezone})
     });
     const data = await response.json();
     if (data.error) {
@@ -88,15 +71,17 @@ async function getCommuteAlert() {
 async function getBestTimes() {
     const activity = document.getElementById('activity').value;
     const date = document.getElementById('activity-date').value;
-    const location = document.getElementById('location').value;
-    if (!location || !date || !activity) {
-        alert('Please enter activity, date, and location');
+    const lat = document.getElementById('lat').value;
+    const lon = document.getElementById('lon').value;
+    const timezone = document.getElementById('timezone').value;
+    if (!activity || !date || !lat || !lon) {
+        alert('Please get weather first and enter activity and date');
         return;
     }
     const response = await fetch('/best_times', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({activity, date, location})
+        body: JSON.stringify({activity, date, lat, lon, timezone})
     });
     const data = await response.json();
     if (data.error) {
