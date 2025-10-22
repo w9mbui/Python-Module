@@ -2,138 +2,90 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Smart Weather & Lifestyle Assistant</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        section { margin-bottom: 20px; }
-        h1, h2 { color: #333; }
-        input, select, button { margin: 5px; padding: 5px; }
-        #weather-result, #commute-result, #best-times, #favorites-list { margin-top: 10px; }
-        .toggle-container {
-            display: flex;
-            align-items: center;
-            margin: 10px 5px;
-        }
-        .toggle-label {
-            font-size: 14px;
-            margin-right: 10px;
-        }
-        .toggle-switch {
-            position: relative;
-            display: inline-block;
-            width: 60px;
-            height: 34px;
-        }
-        .toggle-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-        .slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: black;
-            transition: 0.4s;
-            border-radius: 34px;
-        }
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 26px;
-            width: 26px;
-            left: 4px;
-            bottom: 4px;
-            background-color: white;
-            transition: 0.4s;
-            border-radius: 50%;
-        }
-        input:checked + .slider {
-            background-color: #adcbe3;
-        }
-        input:checked + .slider:before {
-            transform: translateX(26px);
-        }
-        .slider:after {
-            content: '°F';
-            color: white;
-            display: block;
-            position: absolute;
-            top: 50%;
-            left: 10px;
-            transform: translateY(-50%);
-            font-size: 12px;
-        }
-        input:checked + .slider:after {
-            content: '°C';
-            left: auto;
-            right: 10px;
-        }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personalized Weather Companion</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-    <h1>Smart Weather & Lifestyle Assistant</h1>
-    
-    <section>
-        <h2>Get Weather</h2>
-        <input id="location" placeholder="Enter location" value="{{ city }}">
-        <input id="date" type="date" placeholder="Optional date">
-        <input type="hidden" id="lat" value="{{ lat }}">
-        <input type="hidden" id="lon" value="{{ lon }}">
-        <input type="hidden" id="timezone" value="{{ timezone }}">
-        <button onclick="fetchWeather()">Get Weather</button>
-        <div id="weather-result"></div>
-        <div class="toggle-container">
-            <span class="toggle-label">Temperature Unit:</span>
-            <label class="toggle-switch">
-                <input type="checkbox" id="temp-unit" checked>
-                <span class="slider"></span>
-            </label>
+
+    <div class="sidebar" id="sidebar">
+        <div>
+            <h2>Weather App</h2>
+            <ul>
+                <li onclick="scrollToSection('searchSection')">Search Weather</li>
+                <li onclick="scrollToSection('favoritesSection')">Favorites</li>
+                <li onclick="scrollToSection('alertsSection')">Set Alerts</li>
+                <li onclick="downloadForecast()">Download Forecast</li>
+            </ul>
         </div>
-    </section>
-    
-    <section>
-        <h2>Commute Alert</h2>
-        <input id="commute-time" type="time">
-        <button onclick="getCommuteAlert()">Get Alert</button>
-        <div id="commute-result"></div>
-    </section>
-    
-    <section>
-        <h2>Best Time for Activity</h2>
-        <select id="activity">
-            <option value="picnic">Picnic</option>
-            <option value="hike">Hike</option>
-            <option value="wedding">Wedding</option>
-        </select>
-        <input id="activity-date" type="date">
-        <button onclick="getBestTimes()">Suggest Times</button>
-        <div id="best-times"></div>
-    </section>
-    
-    <section>
-        <h2>Log Mood</h2>
-        <input id="mood" type="number" min="1" max="10" placeholder="Mood (1-10)">
-        <button onclick="saveMood()">Save Mood</button>
-    </section>
-    
-    <section>
-        <h2>Mood over Weather Chart</h2>
-        <canvas id="mood-chart" width="400" height="200"></canvas>
-        <button onclick="loadChart()">Load Chart</button>
-    </section>
-    
-    <section>
-        <h2>Favorite Cities</h2>
-        <input id="favorite-city" placeholder="Add city">
-        <button onclick="addFavorite()">Add</button>
-        <div id="favorites-list"></div>
-        <button onclick="loadFavorites()">Load Favorites</button>
-    </section>
+        <div class="sidebar-footer">
+            <p>© 2025 Weather Companion</p>
+        </div>
+    </div>
+
+    <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+
+    <div class="container">
+        <h1>Personalized Weather Companion</h1>
+
+        <div id="searchSection" class="search-section">
+            <input type="text" id="cityInput" placeholder="Enter city (e.g., London)">
+            <button onclick="getWeatherByCity()">Search</button>
+            <button onclick="switchUnits()">°F / °C</button>
+            <button onclick="speakWeather()">Voice</button>
+            <button onclick="addFavorite()">Favorite</button>
+        </div>
+
+        <h2 id="currentCity">{{ city }}</h2>
+
+        <div id="weatherInfo" class="weather-card"></div>
+
+        <div id="suggestions" class="weather-card"></div>
+
+        <div id="cityImageContainer">
+            <img id="cityImage" alt="City Image">
+        </div>
+        <canvas id="graph" width="400" height="200"></canvas>
+
+        <div id="favoritesSection" class="weather-card">
+            <h3>Favorites:</h3>
+            <ul id="favorites"></ul>
+        </div>
+
+        <div id="alertsSection" class="weather-card">
+            <h3>Set Alerts:</h3>
+            <div class="alert-inputs">
+                <label>Max Temp:</label>
+                <input type="number" id="maxTemp" placeholder="e.g. 30">
+                <label>Max Rain (mm):</label>
+                <input type="number" id="maxRain" placeholder="e.g. 5">
+                <button onclick="setAlerts()">Save Alerts</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script>
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('active');
+        }
+
+        function scrollToSection(id) {
+            const section = document.getElementById(id);
+            if (section) {
+                section.scrollIntoView({ behavior: 'smooth' });
+            }
+            document.getElementById('sidebar').classList.remove('active');
+        }
+    </script>
+    <div id="customAlert" class="custom-alert hidden">
+  <div class="custom-alert-content">
+    <span id="alertMessage"></span>
+    <button id="closeAlert">OK</button>
+  </div>
+</div>
+
 </body>
 </html>
+
